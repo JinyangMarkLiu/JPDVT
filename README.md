@@ -6,7 +6,7 @@
   cd JPDVT
 
 ## Preparing Data
-Download datasets as you need. Here we give brief instructions for setting up different datasets.
+Download datasets as you need. Here we give brief instructions for setting up part of the datasets we used.
 
 #### _ImageNet_
 You can use this [script](https://gist.github.com/bonlime/4e0d236cf98cd5b15d977dfa03a63643) to download and prepare the _ImageNet_ dataset. If you need to download the dataset, please uncomment the first part of the script.
