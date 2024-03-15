@@ -1,5 +1,6 @@
-# Solving Masked Jigsaw Puzzles with Diffusion Vision Transformers
+## Solving Masked Jigsaw Puzzles with Diffusion Vision Transformers (SPDVT) <br><sub>Official PyTorch Implementation</sub> 
 [CVPR 2024] Solving Masked Jigsaw Puzzles with Diffusion Vision Transformers
+
 
 ## Setup
     git clone https://github.com/JinyangMarkLiu/JPDVT.git
