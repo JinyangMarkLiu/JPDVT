@@ -378,10 +378,16 @@ def DiT_S_8(**kwargs):
 def JPDVT(**kwargs):
     return DiT(depth=12, hidden_size=768, patch_size=16, num_heads=12, **kwargs)
 
+def JPDVT_S(**kwargs):
+    return DiT(depth=12, hidden_size=768, patch_size=32, num_heads=12, **kwargs)
+
+def JPDVT_T(**kwargs):
+    return DiT(depth=12, hidden_size=768, patch_size=64, num_heads=12, **kwargs)
+
 DiT_models = {
     'DiT-XL/2': DiT_XL_2,  'DiT-XL/4': DiT_XL_4,  'DiT-XL/8': DiT_XL_8,
     'DiT-L/2':  DiT_L_2,   'DiT-L/4':  DiT_L_4,   'DiT-L/8':  DiT_L_8,
     'DiT-B/2':  DiT_B_2,   'DiT-B/4':  DiT_B_4,   'DiT-B/8':  DiT_B_8,
     'DiT-S/2':  DiT_S_2,   'DiT-S/4':  DiT_S_4,   'DiT-S/8':  DiT_S_8,
-    'JPDVT': JPDVT,
+    'JPDVT': JPDVT, 'JPDVT-S': JPDVT_S, 'JPDVT-T': JPDVT_T,
 }
