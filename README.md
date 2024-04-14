@@ -1,6 +1,8 @@
 ## Solving Masked Jigsaw Puzzles with Diffusion Vision Transformers (SPDVT) <br><sub>Official PyTorch Implementation</sub> 
 [CVPR 2024] Solving Masked Jigsaw Puzzles with Diffusion Vision Transformers
 
+### [Paper](https://arxiv.org/abs/2404.07292v1)
+
 **This GitHub repository is currently undergoing organization.** Stay tuned for the upcoming release of fully functional code!
 
 <img width="1493" alt="Main Arch" src="https://github.com/JinyangMarkLiu/JPDVT/assets/50398783/6a91130e-0940-48c7-9b7a-b842ab8fbb69">
@@ -34,6 +36,16 @@ On MET dataset:
 
 
 ## BibTeX
+If you find our paper/project useful, please consider citing our paper:
+
+```bibtex
+@article{liu2024solving,,
+  author = {Jinyang Liu and Wondmgezahu Teshome and Sandesh Ghimire and Mario Sznaier and Octavia Camps},
+  title = {Solving Masked Jigsaw Puzzles with Diffusion Vision Transformers},
+  year = 2024,
+  booktitle={The IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+}
+```
 
 ## Acknowledgments
 Our codebase is mainly based on [improved diffusion](https://github.com/openai/improved-diffusion), [make a video](https://github.com/lucidrains/make-a-video-pytorch), and [DiT](https://github.com/facebookresearch/DiT).
