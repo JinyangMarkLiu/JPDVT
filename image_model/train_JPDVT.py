@@ -1,14 +1,7 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-
 """
-A minimal training script for DiT using PyTorch DDP.
+A minimal training script for JPDVT using PyTorch DDP.
 """
 import torch
-# the first flag below was False when we tested this script but True makes A100 training a lot faster:
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 import torch.distributed as dist
@@ -51,7 +44,6 @@ def update_ema(ema_model, model, decay=0.9999):
         # TODO: Consider applying only to params that require_grad to avoid small numerical changes of pos_embed
         ema_params[name].mul_(decay).add_(param.data, alpha=1 - decay)
 
-
 def requires_grad(model, flag=True):
     """
     Set requires_grad flag for all parameters in a model.
@@ -59,13 +51,11 @@ def requires_grad(model, flag=True):
     for p in model.parameters():
         p.requires_grad = flag
 
-
 def cleanup():
     """
     End DDP training.
     """
     dist.destroy_process_group()
-
 
 def create_logger(logging_dir):
     """
@@ -256,7 +246,7 @@ def main(args):
                 log_steps = 0
                 start_time = time()
 
-            # Save DiT checkpoint:
+            # Save JPDVT checkpoint:
             if train_steps % args.ckpt_every == 0 and train_steps > 0:
                 if rank == 0:
                     checkpoint = {
@@ -271,16 +261,12 @@ def main(args):
                 dist.barrier()
 
     model.eval()  # important! This disables randomized embedding dropout
-    # do any sampling/FID calculation/etc. with ema (or model) in eval mode ...
 
     logger.info("Done!")
     cleanup()
 
-
 if __name__ == "__main__":
-    # Default args here will train DiT-XL/2 with the hyperparameters we used in our paper (except training iters).
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--data-path", type=str, required=True)
     parser.add_argument("--results-dir", type=str, default="results")
     parser.add_argument("--model", type=str, choices=list(DiT_models.keys()), default="JPDVT")
     parser.add_argument("--dataset", type=str, choices=["imagenet", "met"], default="imagenet")
@@ -288,11 +274,9 @@ if __name__ == "__main__":
     parser.add_argument("--crop", action='store_true', default=False)
     parser.add_argument("--add-mask", action='store_true', default=False)
     parser.add_argument("--image-size", type=int, choices=[192, 288], default=288)
-    parser.add_argument("--num-classes", type=int, default=1000)
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--global-batch-size", type=int, default=96)
     parser.add_argument("--global-seed", type=int, default=0)
-    parser.add_argument("--vae", type=str, choices=["ema", "mse"], default="ema")  # Choice doesn't affect training
     parser.add_argument("--num-workers", type=int, default=12)
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--ckpt-every", type=int, default=10_000)
