@@ -733,7 +733,7 @@ class GaussianDiffusion:
         output = th.where((t == 0), decoder_nll, kl)
         return {"output": output, "pred_xstart": out["pred_xstart"]}
 
-    def training_losses(self, model, x_start, t, time_emb_start, model_kwargs=None, noise=None):
+    def training_losses(self, model, x_start, t, time_emb_start, model_kwargs=None, noise=None, block_size=96, patch_size=16, add_mask=False):
         """
         Compute training losses for a single timestep.
         :param model: the model to evaluate loss on.
@@ -745,7 +745,6 @@ class GaussianDiffusion:
         :return: a dict with the key "loss" containing a tensor of shape [N].
                  Some mean or variance settings may also have other keys.
         """
-
         if model_kwargs is None:
             model_kwargs = {}
         noise_x = th.randn_like(x_start)
@@ -753,29 +752,23 @@ class GaussianDiffusion:
         
         def shuffle_and_mask(x_start,time_emb_start):
             indices = np.random.permutation(9)
-            x_start = rearrange(x_start, 'b c (p1 h1) (p2 w1)-> b c (p1 p2) h1 w1',p1=3,p2=3,h1=96,w1=96)
+            x_start = rearrange(x_start, 'b c (p1 h1) (p2 w1)-> b c (p1 p2) h1 w1',p1=3,p2=3,h1=block_size,w1=block_size)
             masks = th.ones_like(x_start)
-            # for i in range(x_start.shape[0]):
-            #     r = np.random.randint(0,4)
-            #     mask = random.sample(range(9), r)
-            #     masks[i,:,mask,:,:] = 0
+            if add_mask:
+                for i in range(x_start.shape[0]):
+                    r = np.random.randint(0,4)
+                    mask = random.sample(range(9), r)
+                    masks[i,:,mask,:,:] = 0
             x_start = x_start[:,:,indices,:,:]
             
-            x_start = rearrange(x_start, ' b c (p1 p2) h1 w1->b c (p1 h1) (p2 w1)',p1=3,p2=3,h1=96,w1=96)
-            masks = rearrange(masks, ' b c (p1 p2) h1 w1->b c (p1 h1) (p2 w1)',p1=3,p2=3,h1=96,w1=96)
+            x_start = rearrange(x_start, ' b c (p1 p2) h1 w1->b c (p1 h1) (p2 w1)',p1=3,p2=3,h1=block_size,w1=block_size)
+            masks = rearrange(masks, ' b c (p1 p2) h1 w1->b c (p1 h1) (p2 w1)',p1=3,p2=3,h1=block_size,w1=block_size)
 
             time_emb_start = time_emb_start[:,indices,:]
-            time_emb_start = time_emb_start.unsqueeze(2).repeat(1,1,36,1)
-            time_emb_start = rearrange(time_emb_start, 'c (p1 p2) (h1 w1) d -> c (p1 h1 p2 w1) d',p1=3, p2=3, h1=6, w1=6)
+            time_emb_start = time_emb_start.unsqueeze(2).repeat(1,1,(block_size//patch_size)**2,1)
+            time_emb_start = rearrange(time_emb_start, 'c (p1 p2) (h1 w1) d -> c (p1 h1 p2 w1) d',p1=3, p2=3, h1=block_size//patch_size, w1=block_size//patch_size)
 
             return x_start,time_emb_start,masks
-        
-        # for i in range(x_start.shape[2]):
-        #     for j in range(x_start.shape[3]):
-        #         x_start[:,:,i,j] = i *255 + j
-
-        # for i in range(time_emb_start.shape[1]):
-        #     time_emb_start[:,i,:] = i
 
         x_start,time_emb_start,masks = shuffle_and_mask(x_start,time_emb_start)
         noise_time_emb = th.randn_like(time_emb_start)
@@ -800,32 +793,8 @@ class GaussianDiffusion:
             if self.loss_type == LossType.RESCALED_KL:
                 terms["loss"] *= self.num_timesteps
         elif self.loss_type == LossType.MSE or self.loss_type == LossType.RESCALED_MSE:
-            # breakpoint()
             x_output,time_emb_output = model(x_t, t, time_emb_t, **model_kwargs)
-            # if self.model_var_type in [
-            #     ModelVarType.LEARNED,
-            #     ModelVarType.LEARNED_RANGE,
-            # ]:
-            #     B, C = x_t.shape[:2]
-            #     assert x_output.shape == (B, C * 2, *x_t.shape[2:])
-            #     x_output, x_var_values = th.split(x_output, C, dim=1)
-            #     # Learn the variance using the variational bound, but don't let
-            #     # it affect our mean prediction.
-            #     frozen_out = th.cat([x_output.detach(), x_var_values], dim=1)
-            #     terms["vb"] = self._vb_terms_bpd(
-            #         model=lambda *args, r=frozen_out: r,
-            #         x_start=x_start,
-            #         x_t=x_t,
-            #         time_emb_start=time_emb_start,
-            #         time_emb_t=time_emb_t,
-            #         t=t,
-            #         clip_denoised=False,
-            #     )["output"]
-            #     if self.loss_type == LossType.RESCALED_MSE:
-            #         # Divide by 1000 for equivalence with initial implementation.
-            #         # Without a factor of 1/1000, the VB term hurts the MSE term.
-            #         terms["vb"] *= self.num_timesteps / 1000.0
-
+            
             target_x = {
                 ModelMeanType.PREVIOUS_X: self.q_posterior_mean_variance(
                     x_start=x_start, x_t=x_t, t=t
@@ -841,10 +810,11 @@ class GaussianDiffusion:
                 ModelMeanType.EPSILON: noise_time_emb,
             }[self.model_mean_type]
             assert x_output.shape == target_x.shape == x_start.shape
+            # loss on all positional embedding
             terms["mse"] = mean_flat((target_time_emb - time_emb_output) ** 2)
-            # if "vb" in terms:
-            #     terms["loss"] = terms["mse"] + terms["vb"]
-            # else:
+            # loss on reconstruction of missing patches if masks added
+            if add_mask:
+                terms["mse"] += mean_flat((target_x - x_output) ** 2 * (1-masks) ) 
             terms["loss"] = terms["mse"]
         else:
             raise NotImplementedError(self.loss_type)
