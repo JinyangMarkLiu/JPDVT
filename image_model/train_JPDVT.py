@@ -26,14 +26,14 @@ from time import time
 import argparse
 import logging
 import os
-from download import find_model
 
-from newmodels import DiT_models
-from newmodels import get_2d_sincos_pos_embed
+from models import DiT_models
+from models import get_2d_sincos_pos_embed
 from diffusion import create_diffusion
 from diffusers.models import AutoencoderKL
 
-from met import MET
+from datasets import MET
+from einops import rearrange
 
 #################################################################################
 #                             Training Helper Functions                         #
@@ -128,9 +128,11 @@ def main(args):
 
     # Setup an experiment folder:
     if rank == 0:
-        os.makedirs(args.results_dir, exist_ok=True)  # Make results folder (holds all experiment subfolders)
+        os.makedirs(args.results_dir, exist_ok=True) 
         experiment_index = len(glob(f"{args.results_dir}/*"))
-        model_string_name = args.model.replace("/", "-")  # e.g., DiT-XL/2 --> DiT-XL-2 (for naming folders)
+        model_string_name = args.model.replace("/", "-")  
+        model_string_name = args.dataset+"-" + model_string_name + "-crop" if args.crop else args.dataset+"-" + model_string_name 
+        model_string_name = model_string_name + "-withmask" if args.add_mask else model_string_name
         experiment_dir = f"{args.results_dir}/{experiment_index:03d}-{model_string_name}"  # Create an experiment folder
         checkpoint_dir = f"{experiment_dir}/checkpoints"  # Stores saved model checkpoints
         os.makedirs(checkpoint_dir, exist_ok=True)
@@ -140,18 +142,20 @@ def main(args):
         logger = create_logger(None)
 
     # Create model:
-    assert args.image_size % 3 == 0, "Image size must be divisible by 8 (for the VAE encoder)."
-    # latent_size = args.image_size
+    assert args.image_size % 3 == 0, "Image size should be Multiples of 3"
+    if args.dataset == 'imagenet':
+        assert args.image_size == 288 or args.crop, "Set imagesize to 192 if run experiment on imagenet with gap"
     model = DiT_models[args.model](
         input_size=args.image_size
     )
 
-    # ckpt_path = args.ckpt or f"DiT-XL-2-{args.image_size}x{args.image_size}.pt"
-    # print("Load model from ",ckpt_path)
-    # model_dict = model.state_dict()
-    # state_dict = find_model(ckpt_path)
-    # pretrained_dict = {k: v for k, v in state_dict.items() if k in model_dict}
-    # model.load_state_dict(pretrained_dict, strict=False)
+    if args.ckpt!= "":
+        ckpt_path = args.ckpt
+        print("Load model from ",ckpt_path)
+        model_dict = model.state_dict()
+        state_dict = torch.load(ckpt_path)
+        pretrained_dict = {k: v for k, v in state_dict.items() if k in model_dict}
+        model.load_state_dict(pretrained_dict, strict=False)
 
     # Note that parameter initialization is done within the DiT constructor
     ema = deepcopy(model).to(device)  # Create an EMA of the model for use after training
@@ -163,16 +167,20 @@ def main(args):
     # Setup optimizer (we used default Adam betas=(0.9, 0.999) and a constant learning rate of 1e-4 in our paper):
     opt = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0)
 
-    # Setup data:
-    dataset = MET('/data/mark/met3','train')
-  
     transform = transforms.Compose([
-        transforms.Lambda(lambda pil_image: center_crop_arr(pil_image, args.image_size)),
+        transforms.Lambda(lambda pil_image: center_crop_arr(pil_image, 288)),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
     ])
 
+    # Setup data:
+    if args.dataset == "met":
+        # MET dataloader give out croped and stitched back images
+        dataset = MET(args.data_path,'train')
+    elif args.dataset == "imagenet":
+        dataset = ImageFolder(args.data_path, transform=transform)
+  
     sampler = DistributedSampler(
         dataset,
         num_replicas=dist.get_world_size(),
@@ -207,13 +215,22 @@ def main(args):
         sampler.set_epoch(epoch)
         logger.info(f"Beginning epoch {epoch}...")
         for x in loader:
+            if args.dataset == 'imagenet':
+                x, _ = x
             x = x.to(device)
+            if args.dataset == 'imagenet' and args.crop:
+                centercrop = transforms.CenterCrop((64,64))
+                patchs = rearrange(x, 'b c (p1 h1) (p2 w1)-> b c (p1 p2) h1 w1',p1=3,p2=3,h1=96,w1=96)
+                patchs = centercrop(patchs)
+                x = rearrange(patchs, 'b c (p1 p2) h1 w1-> b c (p1 h1) (p2 w1)',p1=3,p2=3,h1=64,w1=64)
+
+            # Set up initial positional embedding
             time_emb = torch.tensor(get_2d_sincos_pos_embed(8, 3)).unsqueeze(0).float().to(device)
 
             t = torch.randint(0, diffusion.num_timesteps, (x.shape[0],), device=device)
-            # model_kwargs = dict(y=y)
             model_kwargs = None
-            loss_dict = diffusion.training_losses(model, x, t, time_emb, model_kwargs)
+            loss_dict = diffusion.training_losses(model, x, t, time_emb, model_kwargs, \
+                block_size=args.image_size//3, patch_size=16, add_mask=args.add_mask)
             loss = loss_dict["loss"].mean()
             opt.zero_grad()
             loss.backward()
@@ -265,17 +282,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # parser.add_argument("--data-path", type=str, required=True)
     parser.add_argument("--results-dir", type=str, default="results")
-    parser.add_argument("--model", type=str, choices=list(DiT_models.keys()), default="SJDiT")
-    parser.add_argument("--image-size", type=int, choices=[256, 512, 288], default=288)
+    parser.add_argument("--model", type=str, choices=list(DiT_models.keys()), default="JPDVT")
+    parser.add_argument("--dataset", type=str, choices=["imagenet", "met"], default="imagenet")
+    parser.add_argument("--data-path", type=str,required=True)
+    parser.add_argument("--crop", action='store_true', default=False)
+    parser.add_argument("--add-mask", action='store_true', default=False)
+    parser.add_argument("--image-size", type=int, choices=[192, 288], default=288)
     parser.add_argument("--num-classes", type=int, default=1000)
-    parser.add_argument("--epochs", type=int, default=3000)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--global-batch-size", type=int, default=96)
     parser.add_argument("--global-seed", type=int, default=0)
     parser.add_argument("--vae", type=str, choices=["ema", "mse"], default="ema")  # Choice doesn't affect training
     parser.add_argument("--num-workers", type=int, default=12)
     parser.add_argument("--log-every", type=int, default=100)
     parser.add_argument("--ckpt-every", type=int, default=10_000)
-    # parser.add_argument("--ckpt", type=str, default='/home/dluo/mark/projects/SJDiT/DiT/results/010-DiT-B-4/checkpoints/0050000.pt',
-    #                     help="Optional path to a DiT checkpoint (default: auto-download a pre-trained DiT-XL/2 model).")
+    parser.add_argument("--ckpt", type=str, default='')
     args = parser.parse_args()
     main(args)
