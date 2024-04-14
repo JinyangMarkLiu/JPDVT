@@ -40,12 +40,12 @@ class MET(Dataset):
         saturation = 0.4  # Randomly adjust saturation with a maximum factor of 0.4
         hue = 0.1         # Randomly adjust hue with a maximum factor of 0.1
 
+        # Because the Met is a much more smaller dataset, so we use more complex data augmentation here
         flip_probability = 0.5
         self.transform1 = transforms.Compose([
             transforms.Resize(398), 
             transforms.RandomCrop((398,398)),
             transforms.RandomHorizontalFlip(p=flip_probability),  # Horizontal flipping with 0.5 probability
-            # transforms.RandomVerticalFlip(p=flip_probability), 
             transforms.ColorJitter(brightness=brightness, contrast=contrast, saturation=saturation, hue=hue),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], inplace=True)
@@ -66,7 +66,7 @@ class MET(Dataset):
         elif self.split == 'test':
             return len(self.test_indices)
 
-    def erode(self,image,n_patches):
+    def rand_erode(self,image,n_patches):
         output = torch.zeros(3,96*3,96*3)
         crop = transforms.RandomCrop((96,96))
         gap = 48
@@ -81,44 +81,20 @@ class MET(Dataset):
                 patch = crop(image[:,left:right, upper:lower])
                 output[:,i*96:i*96+96,j*96:j*96+96] = patch
 
-        return output
-
-    def erode1(self,image,n_patches):
-        output = torch.zeros(3,96*3,96*3)
-        crop = transforms.RandomCrop((96,96))
-        gap = 48
-        patch_size = 100
-        for i in range(n_patches):
-            for j in range(n_patches):
-                left = i * (patch_size + gap)
-                upper = j * (patch_size + gap)
-                right = left + patch_size
-                lower = upper + patch_size
-
-                patch = crop(image[:,left:right, upper:lower])
-                output[:,i*96:i*96+96,j*96:j*96+96] = patch
-
-        return output
-    
+        return output    
 
     def __getitem__(self, idx):
         if self.split == 'train':
             index = self.train_indices[idx]
             image = self.transform1(Image.open(self.image_files[index]))
-            image = self.erode(image,3)
+            image = self.rand_erode(image,3)
         elif self.split == 'val':
             index = self.val_indices[idx]
             image = self.transform2(Image.open(self.image_files[index]))
-            image = self.erode1(image,3)
+            image = self.rand_erode(image,3)
         elif self.split == 'test':
             index = self.test_indices[idx]
             image = self.transform2(Image.open(self.image_files[index]))
-            image = self.erode1(image,3)
+            image = self.rand_erode(image,3)
 
         return image
-
-
-
-
-
-
