@@ -26,11 +26,11 @@ We provide training scripts for training image models and video models.
 ### Training image models
 On ImageNet dataset:
 
-    torchrun --nnodes=1 --nproc_per_node=4 train_JPDVT.py --dataset imagenet --data-path <imagenet_path> --image-size 192 --crop
+    torchrun --nnodes=1 --nproc_per_node=4 train_JPDVT.py --dataset imagenet --data-path <imagenet-train-path> --image-size 192 --crop
 
 On MET dataset:
 
-    torchrun --nnodes=1 --nproc_per_node=4 train_JPDVT.py --dataset met --data-path <imagenet_path> --image-size 288
+    torchrun --nnodes=1 --nproc_per_node=4 train_JPDVT.py --dataset met --data-path <met-data-path> --image-size 288
 
 ## Testing
 
