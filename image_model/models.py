@@ -375,7 +375,7 @@ def DiT_S_4(**kwargs):
 def DiT_S_8(**kwargs):
     return DiT(depth=12, hidden_size=384, patch_size=8, num_heads=6, **kwargs)
 
-def SJDiT(**kwargs):
+def JPDVT(**kwargs):
     return DiT(depth=12, hidden_size=768, patch_size=16, num_heads=12, **kwargs)
 
 DiT_models = {
@@ -383,5 +383,5 @@ DiT_models = {
     'DiT-L/2':  DiT_L_2,   'DiT-L/4':  DiT_L_4,   'DiT-L/8':  DiT_L_8,
     'DiT-B/2':  DiT_B_2,   'DiT-B/4':  DiT_B_4,   'DiT-B/8':  DiT_B_8,
     'DiT-S/2':  DiT_S_2,   'DiT-S/4':  DiT_S_4,   'DiT-S/8':  DiT_S_8,
-    'SJDiT': SJDiT,
+    'JPDVT': JPDVT,
 }
