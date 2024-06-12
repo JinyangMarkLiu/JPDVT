@@ -39,11 +39,13 @@ On MET dataset:
 If you find our paper/project useful, please consider citing our paper:
 
 ```bibtex
-@article{liu2024solving,,
-  author = {Jinyang Liu and Wondmgezahu Teshome and Sandesh Ghimire and Mario Sznaier and Octavia Camps},
-  title = {Solving Masked Jigsaw Puzzles with Diffusion Vision Transformers},
-  year = 2024,
-  booktitle={The IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+@InProceedings{Liu_2024_CVPR,
+    author    = {Liu, Jinyang and Teshome, Wondmgezahu and Ghimire, Sandesh and Sznaier, Mario and Camps, Octavia},
+    title     = {Solving Masked Jigsaw Puzzles with Diffusion Vision Transformers},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    month     = {June},
+    year      = {2024},
+    pages     = {23009-23018}
 }
 ```
 
