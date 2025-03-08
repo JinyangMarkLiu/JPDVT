@@ -30,7 +30,7 @@ On ImageNet dataset:
 
 On MET dataset:
 
-    torchrun --nnodes=1 --nproc_per_node=4 train_JPDVT.py --dataset met --data-path <met-data-path> --image-size 288
+    torchrun --nnodes=1 --nproc_per_node=4 train_JPDVT.py --dataset met --data-path <met-data-path> --image-size 288 --epochs 1000
 
 ## Testing
 
